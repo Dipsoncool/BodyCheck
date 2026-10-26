@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { BodyRegion, PatientRecord, DemoScenario } from '../types/bodyCheck';
 import { DEMO_SCENARIOS, GalleryImageAsset } from '../data/mockRecords';
 import { ReviewImageGalleryModal } from './ReviewImageGalleryModal';
+import { CreateRecordModal } from './CreateRecordModal';
 import { 
   Upload, 
   AlertCircle, 
@@ -10,7 +11,10 @@ import {
   CheckCircle2, 
   Search, 
   X,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Activity,
+  Plus,
+  FolderPlus
 } from 'lucide-react';
 
 export interface SelectableRecord {
@@ -23,6 +27,50 @@ export interface SelectableRecord {
   reviewImage?: string;
   scenario?: DemoScenario;
 }
+
+export const BASELINE_SAMPLE_PRESETS: Array<{
+  id: string;
+  name: string;
+  region: BodyRegion;
+  url: string;
+  description: string;
+}> = [
+  {
+    id: 'REF-SHOULDER',
+    name: 'Left Shoulder Healthy Baseline',
+    region: 'Left Shoulder',
+    url: '/images/body-check/IF456/reference.webp',
+    description: 'Deltoid and shoulder contour uninjured skin baseline'
+  },
+  {
+    id: 'REF-FOREARM',
+    name: 'Right Forearm Healthy Baseline',
+    region: 'Right Forearm',
+    url: '/images/body-check/IF455/reference.webp',
+    description: 'Volar mid-shaft forearm normal skin baseline'
+  },
+  {
+    id: 'REF-BACK',
+    name: 'Upper/Mid Back Healthy Baseline',
+    region: 'Back',
+    url: '/images/body-check/IF452/reference.webp',
+    description: 'Paraspinal torso uninjured skin baseline'
+  },
+  {
+    id: 'REF-LEG',
+    name: 'Right Lower Leg Healthy Baseline',
+    region: 'Right Lower Leg',
+    url: '/images/body-check/IF439/reference.webp',
+    description: 'Pre-tibial lower leg uninjured skin baseline'
+  },
+  {
+    id: 'REF-CHEST',
+    name: 'Chest / Torso Healthy Baseline',
+    region: 'Chest',
+    url: '/images/body-check/IF462/reference.webp',
+    description: 'Pectoral region healthy skin baseline'
+  }
+];
 
 interface NewCheckViewProps {
   patients: PatientRecord[];
@@ -48,6 +96,7 @@ interface NewCheckViewProps {
     bodyRegion: BodyRegion;
   }) => void;
   onCancel: () => void;
+  onAddPatient?: (patient: PatientRecord) => void;
 }
 
 export const NewCheckView: React.FC<NewCheckViewProps> = ({
@@ -55,7 +104,8 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
   initialPatientId,
   onAnalyze,
   onSaveReadyToAnalyze,
-  onCancel
+  onCancel,
+  onAddPatient
 }) => {
   // Dynamically derive available records from patients and scenarios (scalable to hundreds of records)
   const availableRecords = useMemo<SelectableRecord[]>(() => {
@@ -167,10 +217,57 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
   });
 
   const [isGalleryOpen, setIsGalleryOpen] = useState<boolean>(false);
+  const [isCreateRecordModalOpen, setIsCreateRecordModalOpen] = useState<boolean>(false);
+  const [isSampleBaselineModalOpen, setIsSampleBaselineModalOpen] = useState<boolean>(false);
 
   // Search & Picker State
   const [searchQuery, setSearchQuery] = useState<string>('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const existingIds = useMemo(() => {
+    return availableRecords.map(r => r.id);
+  }, [availableRecords]);
+
+  const handleCreateRecord = (
+    newRecord: PatientRecord,
+    initialRefImage?: { dataUrl: string; fileName: string }
+  ) => {
+    onAddPatient?.(newRecord);
+    setPatientId(newRecord.id);
+    const chosenRegion = newRecord.defaultRegion || 'Left Shoulder';
+    setBodyRegion(chosenRegion);
+
+    const nowStr = new Date().toLocaleString('sv-SE', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit'
+    }).replace('T', ' ');
+
+    if (initialRefImage) {
+      setRefImage(initialRefImage.dataUrl);
+      setRefImageId(`${newRecord.id}-REF`);
+      setRefDate(nowStr);
+      setRefFileName(initialRefImage.fileName);
+      setMaxUnlockedStep(prev => Math.max(prev, 3));
+      setCurrentStep(3);
+    } else {
+      setRefImage('');
+      setRefImageId(`${newRecord.id}-REF`);
+      setRefDate(nowStr);
+      setRefFileName('');
+      setMaxUnlockedStep(prev => Math.max(prev, 2));
+      setCurrentStep(2);
+    }
+
+    setNewImage('');
+    setNewImageId('');
+    setNewDate('');
+    setNewFileName('');
+    setIsReviewNew(true);
+    setValidationError(null);
+  };
 
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -322,6 +419,7 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
         setRefImageId(`REF-${patientId || 'RECORD'}`);
         setRefFileName(file.name);
         setRefDate(nowStr);
+        setMaxUnlockedStep(prev => Math.max(prev, 3));
       } else {
         const genId = `NEW-${patientId || 'RECORD'}-${Math.floor(100 + Math.random() * 900)}`;
         setNewImage(result);
@@ -497,13 +595,23 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
       {/* STEP 1: SELECT RECORD */}
       {currentStep === 1 && (
         <div className="bg-white border border-slate-200 rounded-lg p-6 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 pb-3">
-            <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
-              STEP 1 — SELECT RECORD
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Choose a record and body region to begin a body check.
-            </p>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900 uppercase tracking-wider">
+                STEP 1 — SELECT RECORD
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Choose an existing record or create a new record for comparative review and scanning.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreateRecordModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold rounded-md shadow-2xs transition-colors cursor-pointer self-start sm:self-auto"
+            >
+              <FolderPlus className="w-4 h-4 text-indigo-600" />
+              <span>+ Add New Record</span>
+            </button>
           </div>
 
           {/* Two-Column Record + Body Region Layout */}
@@ -512,9 +620,21 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
             {/* LEFT COLUMN: Record selection */}
             <div className="space-y-3 md:pr-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Record
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Record
+                  </label>
+                  {!patientId && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCreateRecordModalOpen(true)}
+                      className="text-[11px] text-sky-700 hover:text-sky-900 font-medium flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>New Record</span>
+                    </button>
+                  )}
+                </div>
 
                 {!patientId ? (
                   <div className="space-y-3">
@@ -530,7 +650,7 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
                           setSearchQuery(e.target.value);
                           setValidationError(null);
                         }}
-                        placeholder="Search by record ID..."
+                        placeholder="Search by record ID (e.g. IF456)..."
                         className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-md text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:outline-none transition-all"
                       />
                       {searchQuery && (
@@ -547,8 +667,16 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
                     {/* Scalable Record Results List */}
                     <div className="border border-slate-200 rounded-md max-h-72 overflow-y-auto divide-y divide-slate-100 bg-white shadow-2xs">
                       {filteredRecords.length === 0 ? (
-                        <div className="p-4 text-center text-xs text-slate-500">
-                          No records found
+                        <div className="p-6 text-center text-xs text-slate-500 space-y-2.5">
+                          <p>No records found matching "{searchQuery}"</p>
+                          <button
+                            type="button"
+                            onClick={() => setIsCreateRecordModalOpen(true)}
+                            className="px-3.5 py-2 bg-sky-700 hover:bg-sky-800 text-white rounded text-xs font-semibold inline-flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                          >
+                            <FolderPlus className="w-4 h-4" />
+                            <span>Create New Record {searchQuery ? `"${searchQuery}"` : ''}</span>
+                          </button>
                         </div>
                       ) : (
                         filteredRecords.map((rec) => (
@@ -584,13 +712,23 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
                           Selected
                         </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={handleResetRecordSelection}
-                        className="text-xs font-semibold px-2.5 py-1 text-sky-800 hover:text-sky-950 bg-white hover:bg-sky-50 border border-slate-300 hover:border-sky-300 rounded shadow-2xs transition-colors cursor-pointer"
-                      >
-                        Change record
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsCreateRecordModalOpen(true)}
+                          className="text-xs font-semibold px-2.5 py-1 text-indigo-700 hover:text-indigo-950 bg-white hover:bg-indigo-50 border border-slate-300 hover:border-indigo-300 rounded shadow-2xs transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>New</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleResetRecordSelection}
+                          className="text-xs font-semibold px-2.5 py-1 text-sky-800 hover:text-sky-950 bg-white hover:bg-sky-50 border border-slate-300 hover:border-sky-300 rounded shadow-2xs transition-colors cursor-pointer"
+                        >
+                          Change record
+                        </button>
+                      </div>
                     </div>
 
                     <div className="text-xs text-slate-600">
@@ -697,63 +835,110 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
               STEP 2 — REFERENCE IMAGE
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Select the earlier image used as the comparison baseline.
+              Select or upload the earlier baseline image of uninjured skin for comparison.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
-            <div className="aspect-[4/3] bg-slate-950 rounded border border-slate-200 flex items-center justify-center overflow-hidden relative">
-              <img
-                src={refImage}
-                alt="Reference Baseline"
-                className="w-full h-full object-contain"
-              />
-              <span className="absolute top-2 left-2 bg-slate-900/80 text-white text-[10px] font-mono px-2 py-0.5 rounded">
-                REFERENCE BASELINE
-              </span>
-            </div>
+          {/* Hidden File Input for Reference Image */}
+          <input
+            type="file"
+            ref={refFileInputRef}
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => handleFileUpload(e, 'reference')}
+            className="hidden"
+          />
 
-            <div className="space-y-4 text-xs">
-              <div className="bg-slate-50 p-3.5 rounded border border-slate-200 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Reference ID:</span>
-                  <span className="font-mono font-bold text-slate-900">{refImageId}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Capture Timestamp:</span>
-                  <span className="font-mono text-slate-800">{refDate}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Asset File:</span>
-                  <span className="font-mono text-slate-700 truncate max-w-[200px]">{refFileName}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Validation:</span>
-                  <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3" /> Validated Reference Baseline
-                  </span>
-                </div>
+          {!refImage ? (
+            /* Clean Empty Upload State for New Records */
+            <div className="border-2 border-dashed border-slate-300 rounded-lg p-10 text-center space-y-4 bg-slate-50/50">
+              <div className="h-12 w-12 rounded-full bg-sky-50 border border-sky-200 text-sky-700 flex items-center justify-center mx-auto">
+                <Upload className="w-6 h-6" />
+              </div>
+              <div className="max-w-md mx-auto space-y-1">
+                <h3 className="text-sm font-bold text-slate-900">
+                  Upload Baseline Reference Photograph
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Attach an uninjured, healthy skin baseline photo for {bodyRegion} on Record {patientId} to use as comparison baseline.
+                </p>
               </div>
 
-              <div>
-                <input
-                  type="file"
-                  ref={refFileInputRef}
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(e) => handleFileUpload(e, 'reference')}
-                  className="hidden"
-                />
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => refFileInputRef.current?.click()}
-                  className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded text-xs font-medium text-slate-700 flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full sm:w-auto px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white rounded text-xs font-semibold flex items-center justify-center gap-2 shadow-sm transition-colors cursor-pointer"
                 >
-                  <Upload className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Upload Alternative Reference Image</span>
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Baseline Photo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsSampleBaselineModalOpen(true)}
+                  className="w-full sm:w-auto px-4 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded text-xs font-semibold flex items-center justify-center gap-2 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <ImageIcon className="w-4 h-4 text-slate-500" />
+                  <span>Choose Sample Baseline</span>
                 </button>
               </div>
             </div>
-          </div>
+          ) : (
+            /* Selected Reference Baseline Image Layout */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+              <div className="aspect-[4/3] bg-slate-950 rounded border border-slate-200 flex items-center justify-center overflow-hidden relative">
+                <img
+                  src={refImage}
+                  alt="Reference Baseline"
+                  className="w-full h-full object-contain"
+                />
+                <span className="absolute top-2 left-2 bg-slate-900/80 text-white text-[10px] font-mono px-2 py-0.5 rounded">
+                  REFERENCE BASELINE
+                </span>
+              </div>
+
+              <div className="space-y-4 text-xs">
+                <div className="bg-slate-50 p-3.5 rounded border border-slate-200 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Reference ID:</span>
+                    <span className="font-mono font-bold text-slate-900">{refImageId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Capture Timestamp:</span>
+                    <span className="font-mono text-slate-800">{refDate}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Asset File:</span>
+                    <span className="font-mono text-slate-700 truncate max-w-[200px]">{refFileName}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-500">Validation:</span>
+                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> Validated Reference Baseline
+                    </span>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => refFileInputRef.current?.click()}
+                    className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded text-xs font-medium text-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Upload Alternative Reference Image</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsSampleBaselineModalOpen(true)}
+                    className="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded text-xs font-medium text-slate-700 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <ImageIcon className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Choose Sample Baseline Preset</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="pt-4 flex justify-between border-t border-slate-100">
             <button
@@ -762,7 +947,7 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
                 setValidationError(null);
                 setCurrentStep(1);
               }}
-              className="px-3 py-1.5 border border-slate-300 text-slate-600 rounded text-xs font-medium flex items-center gap-1 hover:bg-slate-50"
+              className="px-3 py-1.5 border border-slate-300 text-slate-600 rounded text-xs font-medium flex items-center gap-1 hover:bg-slate-50 cursor-pointer"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Back to Step 1 (Record)</span>
@@ -770,7 +955,12 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
             <button
               type="button"
               onClick={handleNextStep}
-              className="px-4 py-2 bg-sky-700 hover:bg-sky-800 text-white text-xs font-semibold rounded shadow-sm flex items-center gap-1.5"
+              disabled={!refImage}
+              className={`px-4 py-2 text-xs font-semibold rounded shadow-sm flex items-center gap-1.5 transition-colors ${
+                refImage
+                  ? 'bg-sky-700 hover:bg-sky-800 text-white cursor-pointer'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              }`}
             >
               <span>Continue to Step 3 (Review Image)</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -1019,7 +1209,12 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
                 <span>Back to Step 3 (Review Image)</span>
               </button>
 
-              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+              <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                <div className="hidden sm:flex items-center gap-1.5 text-xs text-sky-700 font-medium bg-sky-50 border border-sky-200/80 px-2.5 py-1.5 rounded-md">
+                  <Activity className="w-3.5 h-3.5 text-sky-600 animate-pulse" />
+                  <span>Differential Scanner active</span>
+                </div>
+
                 {onSaveReadyToAnalyze && (
                   <button
                     type="button"
@@ -1071,6 +1266,107 @@ export const NewCheckView: React.FC<NewCheckViewProps> = ({
         referenceImage={refImage}
         referenceImageId={refImageId}
       />
+
+      {/* Register New Record Modal */}
+      <CreateRecordModal
+        isOpen={isCreateRecordModalOpen}
+        onClose={() => setIsCreateRecordModalOpen(false)}
+        existingIds={existingIds}
+        onCreate={handleCreateRecord}
+        initialQuery={searchQuery}
+      />
+
+      {/* Sample Baseline Picker Modal */}
+      {isSampleBaselineModalOpen && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-3xl w-full shadow-2xl border border-slate-200 overflow-hidden text-slate-900">
+            <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-sky-100 text-sky-700">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">
+                    Select Baseline Reference Photograph
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Choose an uninjured healthy baseline photograph for Record <span className="font-mono font-bold text-slate-800">{patientId}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSampleBaselineModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200/50 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {BASELINE_SAMPLE_PRESETS.map((preset) => (
+                  <div
+                    key={preset.id}
+                    onClick={() => {
+                      setRefImage(preset.url);
+                      setRefImageId(`${patientId || 'REC'}-${preset.id}`);
+                      setRefDate('2026-09-14 09:30');
+                      setRefFileName('baseline_sample.webp');
+                      if (!bodyRegion) {
+                        setBodyRegion(preset.region);
+                      }
+                      setMaxUnlockedStep(prev => Math.max(prev, 3));
+                      setIsSampleBaselineModalOpen(false);
+                      setValidationError(null);
+                    }}
+                    className="border border-slate-200 hover:border-sky-500 rounded-lg overflow-hidden bg-white hover:bg-sky-50/20 shadow-2xs hover:shadow-sm cursor-pointer transition-all group flex flex-col"
+                  >
+                    <div className="aspect-[4/3] bg-slate-950 overflow-hidden relative flex items-center justify-center">
+                      <img
+                        src={preset.url}
+                        alt={preset.name}
+                        className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform duration-200"
+                      />
+                      <span className="absolute top-2 left-2 bg-slate-900/80 text-white text-[9px] font-mono px-1.5 py-0.5 rounded">
+                        BASELINE
+                      </span>
+                    </div>
+                    <div className="p-3 flex-1 flex flex-col justify-between space-y-2">
+                      <div>
+                        <div className="text-xs font-bold text-slate-900 group-hover:text-sky-900">
+                          {preset.name}
+                        </div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          {preset.description}
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[10px]">
+                        <span className="font-semibold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {preset.region}
+                        </span>
+                        <span className="text-sky-700 font-semibold group-hover:underline">
+                          Select →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsSampleBaselineModalOpen(false)}
+                className="px-4 py-2 border border-slate-300 rounded text-xs font-medium text-slate-700 hover:bg-white cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

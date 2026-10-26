@@ -6,9 +6,10 @@ import { NewCheckView } from './components/NewCheckView';
 import { AnalysisReviewView } from './components/AnalysisReviewView';
 import { HistoryView } from './components/HistoryView';
 import { DetailView } from './components/DetailView';
+import { DirectScanView } from './components/DirectScanView';
+import { CreateRecordModal } from './components/CreateRecordModal';
 import { BodyCheckRecord, PatientRecord, AnalysisResult, BodyRegion } from './types/bodyCheck';
 import { UserProfile } from './types/auth';
-import { MOCK_PATIENTS } from './data/mockRecords';
 import { analyzeBodyCheck, PROCESSING_STAGES } from './services/analysisService';
 import { bodyCheckService } from './services/bodyCheckService';
 import { authService } from './services/authService';
@@ -42,11 +43,11 @@ export const App: React.FC = () => {
 
   // Navigation State with session tab persistence
   const [currentTab, setCurrentTabState] = useState<
-    'dashboard' | 'new-check' | 'review' | 'history' | 'detail'
+    'dashboard' | 'new-check' | 'direct-scan' | 'review' | 'history' | 'detail'
   >(() => {
     try {
       const savedTab = sessionStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
-      if (savedTab === 'new-check' || savedTab === 'history' || savedTab === 'dashboard') {
+      if (savedTab === 'new-check' || savedTab === 'direct-scan' || savedTab === 'history' || savedTab === 'dashboard') {
         return savedTab;
       }
     } catch {
@@ -55,7 +56,7 @@ export const App: React.FC = () => {
     return 'dashboard';
   });
 
-  const setCurrentTab = (tab: 'dashboard' | 'new-check' | 'review' | 'history' | 'detail') => {
+  const setCurrentTab = (tab: 'dashboard' | 'new-check' | 'direct-scan' | 'review' | 'history' | 'detail') => {
     setCurrentTabState(tab);
     try {
       sessionStorage.setItem(ACTIVE_TAB_STORAGE_KEY, tab);
@@ -69,9 +70,17 @@ export const App: React.FC = () => {
     return bodyCheckService.getRecords();
   });
 
-  const [patients] = useState<PatientRecord[]>(MOCK_PATIENTS);
+  const [patients, setPatients] = useState<PatientRecord[]>(() => {
+    return bodyCheckService.getPatients();
+  });
   const [selectedPatientId, setSelectedPatientId] = useState<string | undefined>(undefined);
   const [selectedRecordForDetail, setSelectedRecordForDetail] = useState<BodyCheckRecord | null>(null);
+  const [isGlobalCreateRecordOpen, setIsGlobalCreateRecordOpen] = useState<boolean>(false);
+
+  const handleAddNewPatient = (newPatient: PatientRecord) => {
+    bodyCheckService.saveNewPatient(newPatient);
+    setPatients(bodyCheckService.getPatients());
+  };
 
   // Active Comparison / Analysis Flow State
   const [activeAnalysisData, setActiveAnalysisData] = useState<{
@@ -206,7 +215,7 @@ export const App: React.FC = () => {
             actor: 'System',
             actorRole: 'Comparative Analysis',
             action: 'Comparative analysis completed',
-            details: `Candidate finding identified: ${result.finding} (${result.confidence} confidence). AI draft generated.`
+            details: `Candidate finding identified: ${result.finding} (${result.confidence} confidence). Observation draft generated.`
           },
           {
             id: `aud-${Date.now()}-2`,
@@ -315,6 +324,7 @@ export const App: React.FC = () => {
     if (window.confirm('Reset records back to initial default state?')) {
       const reset = bodyCheckService.resetToDemoData();
       setRecords(reset);
+      setPatients(bodyCheckService.getPatients());
     }
   };
 
@@ -407,6 +417,15 @@ export const App: React.FC = () => {
             onOpenRecord={handleOpenRecord}
             onStartAnalysis={handleStartAnalysis}
             onViewProgress={handleViewProgress}
+            onAddNewPatient={() => setIsGlobalCreateRecordOpen(true)}
+            onStartDirectScan={() => setCurrentTab('direct-scan')}
+          />
+        )}
+
+        {currentTab === 'direct-scan' && (
+          <DirectScanView
+            onAnalyze={handleAnalyze}
+            onCancel={() => setCurrentTab('dashboard')}
           />
         )}
 
@@ -416,6 +435,7 @@ export const App: React.FC = () => {
             initialPatientId={selectedPatientId}
             onAnalyze={handleAnalyze}
             onSaveReadyToAnalyze={handleSaveReadyToAnalyze}
+            onAddPatient={handleAddNewPatient}
             onCancel={() => {
               setSelectedPatientId(undefined);
               setCurrentTab('dashboard');
@@ -492,6 +512,18 @@ export const App: React.FC = () => {
         </div>
       </footer>
 
+      {/* Global Create Record Modal (Accessible from Dashboard & Navbar) */}
+      <CreateRecordModal
+        isOpen={isGlobalCreateRecordOpen}
+        onClose={() => setIsGlobalCreateRecordOpen(false)}
+        existingIds={patients.map(p => p.id)}
+        onCreate={(newRecord, _refImg) => {
+          handleAddNewPatient(newRecord);
+          setSelectedPatientId(newRecord.id);
+          setIsGlobalCreateRecordOpen(false);
+          setCurrentTab('new-check');
+        }}
+      />
     </div>
   );
 };

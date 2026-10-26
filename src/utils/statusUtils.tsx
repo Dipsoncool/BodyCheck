@@ -141,7 +141,7 @@ export function getFindingSummaryDisplay(record: BodyCheckRecord): {
     case 'human_review':
       return {
         title: record.finding || 'Candidate finding identified',
-        subtitle: record.aiObservation ? `Draft: ${record.aiObservation}` : 'AI draft ready for human confirmation',
+        subtitle: record.aiObservation ? `Draft: ${record.aiObservation}` : 'Observation draft ready for review and confirmation',
         isDraft: true
       };
     case 'processing':

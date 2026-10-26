@@ -15,11 +15,12 @@ export interface ImageWithReticleProps {
   className?: string;
   containerClassName?: string;
   onClick?: () => void;
-  reticleLabel?: string;
   badgeText?: string;
   onInspect?: () => void;
   showInspectButton?: boolean;
   isNormalOrUnchanged?: boolean;
+  isHealed?: boolean;
+  reticleColor?: 'rose' | 'emerald';
 }
 
 export const ImageWithReticle: React.FC<ImageWithReticleProps> = ({
@@ -31,11 +32,12 @@ export const ImageWithReticle: React.FC<ImageWithReticleProps> = ({
   className = '',
   containerClassName = '',
   onClick,
-  reticleLabel = 'INDICATED CHANGE',
   badgeText,
   onInspect,
   showInspectButton = true,
-  isNormalOrUnchanged = false
+  isNormalOrUnchanged = false,
+  isHealed = false,
+  reticleColor = 'rose'
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -124,9 +126,13 @@ export const ImageWithReticle: React.FC<ImageWithReticleProps> = ({
 
   const hasReticle = showReticle && region !== null;
 
-  // Sizing of reticle
-  const reticleWidthPercent = region ? Math.max(region.width * 1.25, 0.08) * 100 : 0;
-  const reticleHeightPercent = region ? Math.max(region.height * 1.25, 0.08) * 100 : 0;
+  // Sizing of reticle: compute exact pixel diameter for a perfect geometric circle
+  const pixelDiameter = region && renderedBounds
+    ? Math.max(32, Math.min(
+        Math.min(renderedBounds.width, renderedBounds.height) * 0.40,
+        Math.max(region.width * renderedBounds.width, region.height * renderedBounds.height)
+      ))
+    : 0;
 
   return (
     <div
@@ -159,20 +165,22 @@ export const ImageWithReticle: React.FC<ImageWithReticleProps> = ({
               left: `${region.x * 100}%`,
               top: `${region.y * 100}%`,
               transform: 'translate(-50%, -50%)',
-              width: `${reticleWidthPercent}%`,
-              height: `${reticleHeightPercent}%`,
+              width: `${pixelDiameter}px`,
+              height: `${pixelDiameter}px`,
             }}
           >
-            {/* Visual Delta Reticle ring and center indicator */}
-            <div className="w-full h-full rounded-full border-2 border-dashed border-rose-500 bg-rose-500/15 flex items-center justify-center shadow-xs">
-              <div className="w-1.5 h-1.5 rounded-full bg-rose-600 shadow-xs"></div>
+            {/* Visual Delta Reticle ring and center indicator - pure clean highlight */}
+            <div className={`w-full h-full rounded-full border-2 border-dashed ${
+              (reticleColor === 'emerald' || isHealed)
+                ? 'border-emerald-500 bg-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.3)]'
+                : 'border-rose-500 bg-rose-500/20 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
+            } flex items-center justify-center`}>
+              <div className={`w-2 h-2 rounded-full ${
+                (reticleColor === 'emerald' || isHealed)
+                  ? 'bg-emerald-500 shadow-[0_0_6px_rgba(16,185,129,0.8)]'
+                  : 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.8)]'
+              }`}></div>
             </div>
-
-            {reticleLabel && (
-              <div className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap bg-rose-900/90 text-white text-[9px] font-mono px-1.5 py-0.5 rounded shadow">
-                {reticleLabel}
-              </div>
-            )}
           </div>
         </div>
       )}

@@ -10,7 +10,10 @@ import {
   User, 
   FolderKanban,
   Loader2,
-  PlayCircle
+  PlayCircle,
+  FolderPlus,
+  Plus,
+  Zap
 } from 'lucide-react';
 import { 
   renderStatusBadge, 
@@ -27,6 +30,8 @@ interface DashboardViewProps {
   onOpenRecord: (record: BodyCheckRecord) => void;
   onStartAnalysis?: (record: BodyCheckRecord) => void;
   onViewProgress?: (record: BodyCheckRecord) => void;
+  onAddNewPatient?: () => void;
+  onStartDirectScan?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -35,7 +40,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onStartNewCheck,
   onOpenRecord,
   onStartAnalysis,
-  onViewProgress
+  onViewProgress,
+  onAddNewPatient,
+  onStartDirectScan
 }) => {
   const [selectedPatientId, setSelectedPatientId] = useState<string>(patients[0]?.id || 'IF456');
 
@@ -63,7 +70,27 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               Review and document visible changes between body-check images.
             </p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {onAddNewPatient && (
+              <button
+                type="button"
+                onClick={onAddNewPatient}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-sm font-semibold rounded-md shadow-2xs transition-colors cursor-pointer"
+              >
+                <FolderPlus className="w-4 h-4 text-indigo-600" />
+                <span>+ Add Record</span>
+              </button>
+            )}
+            {onStartDirectScan && (
+              <button
+                type="button"
+                onClick={onStartDirectScan}
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white text-sm font-semibold rounded-md shadow-sm transition-colors focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+              >
+                <Zap className="w-4 h-4 text-indigo-200" />
+                <span>Direct Scan</span>
+              </button>
+            )}
             <button
               onClick={() => onStartNewCheck()}
               className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-sky-700 hover:bg-sky-800 text-white text-sm font-semibold rounded-md shadow-sm transition-colors focus:ring-2 focus:ring-sky-500 focus:outline-none"
@@ -102,7 +129,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {/* Checks Requiring Review / AI Drafts */}
+        {/* Checks Requiring Review / Pending Drafts */}
         <div className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Awaiting Review / Drafts</span>
@@ -142,17 +169,30 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
           
           <div className="flex items-center gap-2">
-            <select
-              value={selectedPatientId}
-              onChange={(e) => setSelectedPatientId(e.target.value)}
-              className="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-md px-3 py-1.5 focus:ring-1 focus:ring-sky-500 font-mono font-medium"
-            >
-              {patients.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.id} — {p.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={selectedPatientId}
+                onChange={(e) => setSelectedPatientId(e.target.value)}
+                className="bg-slate-50 border border-slate-300 text-slate-800 text-sm rounded-md px-3 py-1.5 focus:ring-1 focus:ring-sky-500 font-mono font-medium"
+              >
+                {patients.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.id} — {p.name}
+                  </option>
+                ))}
+              </select>
+              {onAddNewPatient && (
+                <button
+                  type="button"
+                  onClick={onAddNewPatient}
+                  className="text-xs font-semibold px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded border border-indigo-200 transition-colors flex items-center gap-1 shadow-2xs cursor-pointer"
+                  title="Create a new monitored record"
+                >
+                  <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>New</span>
+                </button>
+              )}
+            </div>
             <button
               onClick={() => onStartNewCheck(selectedPatientId)}
               className="text-xs font-semibold px-3 py-2 bg-sky-50 hover:bg-sky-100 text-sky-800 rounded border border-sky-300 transition-colors flex items-center gap-1.5"

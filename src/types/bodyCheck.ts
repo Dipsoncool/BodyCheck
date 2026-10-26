@@ -1,15 +1,19 @@
 export type ConfidenceLevel = 'High' | 'Moderate' | 'Low' | 'Uncertain';
 
-export type BodyRegion = 
+export type BodyRegion =
+  | 'Forehead'
+  | 'Chest'
+  | 'Abdomen'
+  | 'Back'
+  | 'Legs'
+  | 'Full Body Front'
+  | 'Full Body Back'
   | 'Left Shoulder'
   | 'Right Shoulder'
   | 'Left Upper Arm'
   | 'Right Upper Arm'
   | 'Left Forearm'
   | 'Right Forearm'
-  | 'Chest'
-  | 'Abdomen'
-  | 'Back'
   | 'Upper Back'
   | 'Lower Back'
   | 'Left Knee'
@@ -23,7 +27,7 @@ export type BodyRegion =
   | 'Lower Leg'
   | 'Other';
 
-export type ChangeType = 
+export type ChangeType =
   | 'Visible color change / contusion-like discoloration'
   | 'Superficial skin-surface change'
   | 'Localized swelling/contour change'
@@ -37,7 +41,7 @@ export type ChangeType =
   | 'Other Visible Change'
   | 'No Significant Visible Change';
 
-export type CheckStatus = 
+export type CheckStatus =
   | 'not_analyzed'
   | 'ready_to_analyze'
   | 'processing'
@@ -68,11 +72,27 @@ export interface CandidateFinding {
   finding: string;
   confidence: ConfidenceLevel;
   confidenceScore: number;
+  isHealed?: boolean;
   deltaRegion?: DeltaRegion;
   changeCoordinates?: {
     xPercent: number;
     yPercent: number;
     radiusPercent: number;
+  };
+  mlInference?: {
+    detected: boolean;
+    isIdenticalImage?: boolean;
+    isHealed?: boolean;
+    classProbabilities: {
+      normal: number;
+      bruise: number;
+      erythema: number;
+      abrasion: number;
+      resolving: number;
+    };
+    clinicalRationale?: string;
+    inferenceTimeMs?: number;
+    maxDeltaE?: number;
   };
 }
 
@@ -80,30 +100,31 @@ export interface BodyCheckRecord {
   id: string; // e.g. "BC-2026-0891"
   patientRecordId: string; // e.g. "IF456"
   patientName?: string;
-  
+
   // Reference Baseline Image
   referenceImage: string;
   referenceImageId: string;
   referenceDate: string;
-  
+
   // New / Review Image
   newImage?: string;
   newImageId?: string;
   newImageDate?: string;
-  
+
   // Body Region & Findings
   bodyRegion: BodyRegion;
   changeType?: ChangeType;
   finding?: string;
   confidence?: ConfidenceLevel;
   confidenceScore?: number;
+  isHealed?: boolean;
   candidateFinding?: CandidateFinding;
-  
+
   // Observations
-  aiObservation?: string; // Initial AI draft
+  aiObservation?: string; // Initial observation draft
   finalObservation?: string; // Reviewer-edited or confirmed observation
   draftSavedAt?: string;
-  
+
   // Human Review Status & Governance
   status: CheckStatus;
   reviewer?: string; // e.g. "Sarah Mitchell"
@@ -112,7 +133,7 @@ export interface BodyCheckRecord {
   reviewerNotes?: string;
   updatedAt?: string; // Latest activity timestamp for sorting recent activity
   createdAt?: string;
-  
+
   // Visual Reticle Coordinates & Region
   deltaRegion?: DeltaRegion;
   changeCoordinates?: {
@@ -149,6 +170,7 @@ export interface AnalysisResult {
   finding: string;
   confidence: ConfidenceLevel;
   confidenceScore: number;
+  isHealed?: boolean;
   aiObservation: string;
   candidateFinding: CandidateFinding;
   deltaRegion?: DeltaRegion;
@@ -156,6 +178,21 @@ export interface AnalysisResult {
     xPercent: number;
     yPercent: number;
     radiusPercent: number;
+  };
+  mlInference?: {
+    detected: boolean;
+    isIdenticalImage?: boolean;
+    isHealed?: boolean;
+    classProbabilities: {
+      normal: number;
+      bruise: number;
+      erythema: number;
+      abrasion: number;
+      resolving: number;
+    };
+    clinicalRationale?: string;
+    inferenceTimeMs?: number;
+    maxDeltaE?: number;
   };
 }
 

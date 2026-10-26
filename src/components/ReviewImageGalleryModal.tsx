@@ -34,28 +34,44 @@ export const ReviewImageGalleryModal: React.FC<ReviewImageGalleryModalProps> = (
     });
   }, [recordId, bodyRegion]);
 
+  const [showAllLibrary, setShowAllLibrary] = useState<boolean>(matchingAssets.length === 0);
+
+  // Auto-switch to library when record has no pre-saved scans
+  useEffect(() => {
+    if (matchingAssets.length === 0) {
+      setShowAllLibrary(true);
+    }
+  }, [matchingAssets.length]);
+
+  const displayedAssets = useMemo(() => {
+    if (!showAllLibrary && matchingAssets.length > 0) {
+      return matchingAssets;
+    }
+    return GALLERY_REVIEW_ASSETS;
+  }, [showAllLibrary, matchingAssets]);
+
   const [selectedAssetId, setSelectedAssetId] = useState<string>(() => {
-    if (currentlySelectedId && matchingAssets.some(a => a.id === currentlySelectedId)) {
+    if (currentlySelectedId && displayedAssets.some(a => a.id === currentlySelectedId)) {
       return currentlySelectedId;
     }
-    return matchingAssets[0]?.id || '';
+    return displayedAssets[0]?.id || '';
   });
 
-  // Keep selected ID in sync when modal opens or matching assets change
+  // Keep selected ID in sync when modal opens or displayed assets change
   useEffect(() => {
-    if (currentlySelectedId && matchingAssets.some(a => a.id === currentlySelectedId)) {
+    if (currentlySelectedId && displayedAssets.some(a => a.id === currentlySelectedId)) {
       setSelectedAssetId(currentlySelectedId);
-    } else if (matchingAssets.length > 0) {
-      setSelectedAssetId(matchingAssets[0].id);
+    } else if (displayedAssets.length > 0) {
+      setSelectedAssetId(displayedAssets[0].id);
     } else {
       setSelectedAssetId('');
     }
-  }, [isOpen, currentlySelectedId, matchingAssets]);
+  }, [isOpen, currentlySelectedId, displayedAssets]);
 
   if (!isOpen) return null;
 
-  const selectedAsset = matchingAssets.find(a => a.id === selectedAssetId);
-  const hasNewImages = matchingAssets.some(a => a.isNew);
+  const selectedAsset = displayedAssets.find(a => a.id === selectedAssetId) || displayedAssets[0];
+  const hasNewImages = displayedAssets.some(a => a.isNew);
   const refImgSrc = referenceImage || `/images/body-check/${recordId}/reference.webp`;
 
   const handleConfirm = () => {
@@ -165,7 +181,7 @@ export const ReviewImageGalleryModal: React.FC<ReviewImageGalleryModalProps> = (
 
             {/* 2. RIGHT: [Review Image] Review Candidates (Multi-column compact grid) */}
             <div className="flex-1 min-w-0 w-full bg-white rounded-lg border border-slate-200 p-3.5 shadow-2xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-bold uppercase tracking-wider text-slate-700">
                     [Review Image]
@@ -174,56 +190,64 @@ export const ReviewImageGalleryModal: React.FC<ReviewImageGalleryModalProps> = (
                     Review Candidates
                   </span>
                 </div>
-                {hasNewImages ? (
-                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    NEW AVAILABLE
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-                    NO NEW IMAGES
-                  </span>
-                )}
+
+                <div className="flex items-center gap-1.5">
+                  {matchingAssets.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllLibrary(false)}
+                      className={`text-[11px] font-semibold px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                        !showAllLibrary
+                          ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                          : 'text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      Record {recordId} ({matchingAssets.length})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowAllLibrary(true)}
+                    className={`text-[11px] font-semibold px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                      showAllLibrary
+                        ? 'bg-sky-100 text-sky-800 border border-sky-300'
+                        : 'text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Demo Library Scans ({GALLERY_REVIEW_ASSETS.length})
+                  </button>
+                </div>
               </div>
 
-              {/* Review Images Grid or Empty State */}
-              {matchingAssets.length === 0 ? (
-                <div className="py-12 px-4 border-2 border-dashed border-slate-200 rounded-lg text-center space-y-3 bg-slate-50/60">
-                  <div className="h-10 w-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                    <ImageIcon className="w-5 h-5" />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-bold text-slate-800">
-                      No new images available
-                    </h4>
-                    <p className="text-xs text-slate-500 max-w-xs mx-auto leading-relaxed">
-                      No review images are registered for record <strong className="font-mono text-slate-700">{recordId}</strong> in region <strong className="text-slate-700">{bodyRegion}</strong>.
-                    </p>
-                    <p className="text-[11px] text-slate-400 pt-1">
-                      Images from other records are strictly isolated and not displayed.
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {/* Warning/Banner if none of the images are NEW */}
-                  {!hasNewImages && (
-                    <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded text-xs text-amber-800 flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                      <div className="text-[11px] leading-tight">
-                        <span className="font-bold">No new images available.</span> Displaying existing reference/follow-up record asset.
-                      </div>
+              {/* Review Images Grid */}
+              <div className="space-y-3">
+                {matchingAssets.length === 0 && (
+                  <div className="p-2.5 bg-sky-50 border border-sky-200 rounded text-xs text-sky-800 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                    <div className="text-[11px] leading-tight">
+                      <span className="font-bold">New Record Active:</span> No previous review scans exist for Record <span className="font-mono font-bold">{recordId}</span> yet. Select any clinical demo scan below or cancel to upload your own photograph in Step 3.
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {/* Responsive Candidate Cards Grid */}
-                  <div className={`grid gap-3.5 ${
-                    matchingAssets.length === 1
-                      ? 'grid-cols-1 max-w-md'
-                      : matchingAssets.length === 2
-                      ? 'grid-cols-1 sm:grid-cols-2'
-                      : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
-                  }`}>
-                    {matchingAssets.map((asset) => {
+                {matchingAssets.length > 0 && !hasNewImages && (
+                  <div className="p-2.5 bg-amber-50/70 border border-amber-200 rounded text-xs text-amber-800 flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <div className="text-[11px] leading-tight">
+                      <span className="font-bold">No new images available.</span> Displaying existing reference/follow-up record asset.
+                    </div>
+                  </div>
+                )}
+
+                {/* Responsive Candidate Cards Grid */}
+                <div className={`grid gap-3.5 ${
+                  displayedAssets.length === 1
+                    ? 'grid-cols-1 max-w-md'
+                    : displayedAssets.length === 2
+                    ? 'grid-cols-1 sm:grid-cols-2'
+                    : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3'
+                }`}>
+                  {displayedAssets.map((asset) => {
                       const isSelected = asset.id === selectedAssetId;
                       return (
                         <div
@@ -304,7 +328,6 @@ export const ReviewImageGalleryModal: React.FC<ReviewImageGalleryModalProps> = (
                     })}
                   </div>
                 </div>
-              )}
 
             </div>
 

@@ -1097,7 +1097,7 @@ export const INITIAL_BODY_CHECKS: BodyCheckRecord[] = [
     ]
   },
 
-  // 2. Ready for Review (AI Draft Ready): IF460 (Foot)
+  // 2. Ready for Review (Observation Draft Ready): IF460 (Foot)
   {
     id: 'BC-2026-0847',
     patientRecordId: 'IF460',
@@ -1153,7 +1153,7 @@ export const INITIAL_BODY_CHECKS: BodyCheckRecord[] = [
         actor: 'System',
         actorRole: 'Comparative Analysis',
         action: 'Comparative analysis completed',
-        details: 'Candidate finding identified: Mild localized erythema/redness on the lateral dorsum (Moderate confidence). AI draft generated.'
+        details: 'Candidate finding identified: Mild localized erythema/redness on the lateral dorsum (Moderate confidence). Observation draft generated.'
       },
       {
         id: 'aud-847-2',
@@ -1230,7 +1230,7 @@ export const INITIAL_BODY_CHECKS: BodyCheckRecord[] = [
         actor: 'System',
         actorRole: 'Comparative Analysis',
         action: 'Comparative analysis completed',
-        details: 'Candidate finding identified: Subtle localized skin-color variation on the lateral upper arm (Moderate confidence). AI draft generated.'
+        details: 'Candidate finding identified: Subtle localized skin-color variation on the lateral upper arm (Moderate confidence). Observation draft generated.'
       },
       {
         id: 'aud-898-2',

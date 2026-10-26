@@ -1,13 +1,53 @@
-import { BodyCheckRecord, AuditEvent } from '../types/bodyCheck';
-import { INITIAL_BODY_CHECKS } from '../data/mockRecords';
+import { BodyCheckRecord, AuditEvent, PatientRecord } from '../types/bodyCheck';
+import { INITIAL_BODY_CHECKS, MOCK_PATIENTS } from '../data/mockRecords';
 
 const STORAGE_KEY = 'bodycheck_records_v10';
+const PATIENTS_STORAGE_KEY = 'bodycheck_patients_v1';
 
 class BodyCheckService {
   private records: BodyCheckRecord[] = [];
+  private patients: PatientRecord[] = [];
 
   constructor() {
     this.loadRecords();
+    this.loadPatients();
+  }
+
+  private loadPatients(): void {
+    try {
+      const saved = localStorage.getItem(PATIENTS_STORAGE_KEY);
+      if (saved) {
+        this.patients = JSON.parse(saved);
+        return;
+      }
+    } catch (e) {
+      console.warn('Failed to load patients from storage:', e);
+    }
+    this.patients = [...MOCK_PATIENTS];
+    this.savePatientsToStorage();
+  }
+
+  private savePatientsToStorage(): void {
+    try {
+      localStorage.setItem(PATIENTS_STORAGE_KEY, JSON.stringify(this.patients));
+    } catch (e) {
+      console.warn('Failed to persist patients:', e);
+    }
+  }
+
+  public getPatients(): PatientRecord[] {
+    return [...this.patients];
+  }
+
+  public saveNewPatient(patient: PatientRecord): PatientRecord {
+    const existingIndex = this.patients.findIndex(p => p.id.toUpperCase() === patient.id.toUpperCase());
+    if (existingIndex >= 0) {
+      this.patients[existingIndex] = patient;
+    } else {
+      this.patients = [patient, ...this.patients];
+    }
+    this.savePatientsToStorage();
+    return patient;
   }
 
   private loadRecords(): void {
@@ -129,6 +169,8 @@ class BodyCheckService {
   public resetToDemoData(): BodyCheckRecord[] {
     this.records = [...INITIAL_BODY_CHECKS];
     this.saveToStorage();
+    this.patients = [...MOCK_PATIENTS];
+    this.savePatientsToStorage();
     return [...this.records];
   }
 

@@ -41,7 +41,7 @@ export async function analyzeBodyCheck(params: AnalysisParams): Promise<Analysis
 
   // Execute realistic 7-stage processing progression
   const stageDelays = [320, 360, 420, 380, 450, 350, 380];
-  
+
   for (let i = 0; i < PROCESSING_STAGES.length; i++) {
     const stageName = PROCESSING_STAGES[i];
     const percent = Math.round(((i + 1) / PROCESSING_STAGES.length) * 100);
@@ -51,22 +51,20 @@ export async function analyzeBodyCheck(params: AnalysisParams): Promise<Analysis
     await new Promise(resolve => setTimeout(resolve, stageDelays[i]));
   }
 
-  // 1. Check for matched demonstration scenario
-  // Match by exact review image URL or review image ID first so candidate scenarios for the same record are accurately resolved
-  const matchedScenario =
+  // 0. Explicit Identical Image Check
+  const isDirectIdentical = Boolean(
+    params.referenceImage &&
+    params.newImage &&
+    params.referenceImage === params.newImage
+  );
+
+  // 1. Check for matched demonstration scenario (ONLY when reference and review are distinct images)
+  const matchedScenario = !isDirectIdentical ? (
     DEMO_SCENARIOS.find(
-      s => (params.newImage && s.newImage === params.newImage) ||
-           (params.newImageId && s.expectedResult.newImageId.toUpperCase() === params.newImageId.toUpperCase())
-    ) ||
-    DEMO_SCENARIOS.find(
-      s => s.patientRecordId.toUpperCase() === patientRecordId.toUpperCase() &&
-           (s.bodyRegion.toLowerCase() === bodyRegion.toLowerCase() ||
-            (s.bodyRegion.includes('Back') && bodyRegion.includes('Back')) ||
-            (s.bodyRegion.includes('Knee') && bodyRegion.includes('Knee')))
-    ) ||
-    DEMO_SCENARIOS.find(
-      s => s.patientRecordId.toUpperCase() === patientRecordId.toUpperCase()
-    );
+      s => (params.newImage && s.newImage === params.newImage && s.referenceImage === params.referenceImage) ||
+        (params.newImageId && params.newImageId !== 'DIRECT-REVIEW' && s.expectedResult.newImageId.toUpperCase() === params.newImageId.toUpperCase())
+    )
+  ) : undefined;
 
   if (matchedScenario) {
     return {
@@ -86,29 +84,64 @@ export async function analyzeBodyCheck(params: AnalysisParams): Promise<Analysis
     };
   }
 
-  // 2. Dynamic visual delta detection for custom / uploaded images
+  // 2. Dynamic visual delta detection with ML condition inference for custom / uploaded / identical images
   const visualResult = await detectVisualChange(params.referenceImage, params.newImage, patientRecordId);
-  const defaultChangeType: ChangeType = visualResult.detected
-    ? 'Color / Skin Appearance Change'
-    : 'No Significant Visible Change';
-  const defaultFinding = visualResult.detected
-    ? 'Visible reddish discoloration / bruise-like appearance'
-    : 'Normal/no significant visible change';
-  const customObservation = visualResult.detected
-    ? `Reviewing the new picture against reference image ${referenceImageId}, there is a visible change in skin appearance with localized reddish discoloration in the ${bodyRegion.toLowerCase()} area, suggesting a possible bruise-like change.`
-    : `Reviewing the new picture against reference image ${referenceImageId}, no significant visible change was identified in the ${bodyRegion.toLowerCase()} area.`;
+  const isHealed = Boolean(visualResult.isHealed || visualResult.mlResult?.isHealed);
+
+  const detectedChangeType: ChangeType = visualResult.predictedChangeType || (
+    isHealed
+      ? 'No significant visible change'
+      : (visualResult.detected
+        ? 'Visible color change / contusion-like discoloration'
+        : 'No significant visible change')
+  );
+
+  const detectedFinding = visualResult.message || (
+    isHealed
+      ? 'Previous bruise/mark resolved — skin appears healed'
+      : (visualResult.detected
+        ? 'Localized reddish/purple bruise / contusion'
+        : 'Normal / no significant visible change')
+  );
+
+  const regionLabel = (!bodyRegion || bodyRegion.toLowerCase() === 'other' || bodyRegion.toLowerCase().includes('general'))
+    ? 'evaluated skin area'
+    : `${bodyRegion.toLowerCase()} area`;
+
+  let customObservation = '';
+  if (visualResult.isIdenticalImage) {
+    customObservation = `Confirmed identical photographs (control comparison). Both reference baseline and review images match exactly with zero differences. No visible marks or changes present.`;
+  } else if (isHealed) {
+    customObservation = `Comparing the review scan against reference baseline ${referenceImageId}, the previous mark/discoloration on the ${regionLabel} has cleared. The skin appears normal and healed with no active bruise or injury.`;
+  } else if (visualResult.detected) {
+    customObservation = `Reviewing the scan against reference baseline ${referenceImageId}, a ${detectedFinding.toLowerCase()} is visible on the ${regionLabel}. Comparison shows noticeable skin color variation in this area.`;
+  } else {
+    customObservation = `Reviewing the scan against reference baseline ${referenceImageId}, no visible marks, bruises, or skin changes were observed on the ${regionLabel}. Appearance remains consistent with baseline.`;
+  }
+
+  const confidenceLevel = visualResult.confidence >= 0.85 ? 'High' : (visualResult.confidence >= 0.65 ? 'Moderate' : 'Low');
 
   const customCandidateFinding: CandidateFinding = {
     bodyRegion,
-    changeType: defaultChangeType,
-    finding: defaultFinding,
-    confidence: visualResult.detected ? 'Moderate' : 'High',
-    confidenceScore: visualResult.detected ? 0.76 : 0.95,
+    changeType: detectedChangeType,
+    finding: detectedFinding,
+    confidence: confidenceLevel,
+    confidenceScore: Math.round(visualResult.confidence * 100) / 100,
+    isHealed,
     deltaRegion: visualResult.deltaRegion,
     changeCoordinates: visualResult.deltaRegion ? {
-      xPercent: visualResult.deltaRegion.x * 100,
-      yPercent: visualResult.deltaRegion.y * 100,
-      radiusPercent: Math.round((visualResult.deltaRegion.width * 100) / 2)
+      xPercent: Math.round(visualResult.deltaRegion.x * 1000) / 10,
+      yPercent: Math.round(visualResult.deltaRegion.y * 1000) / 10,
+      radiusPercent: Math.round((Math.max(visualResult.deltaRegion.width, visualResult.deltaRegion.height) * 100) / 2)
+    } : undefined,
+    mlInference: visualResult.classProbabilities ? {
+      detected: visualResult.detected,
+      isIdenticalImage: visualResult.isIdenticalImage,
+      isHealed,
+      classProbabilities: visualResult.classProbabilities,
+      clinicalRationale: visualResult.clinicalRationale,
+      inferenceTimeMs: visualResult.mlResult?.metrics.inferenceTimeMs,
+      maxDeltaE: visualResult.mlResult?.metrics.maxDeltaE
     } : undefined
   };
 
@@ -118,13 +151,15 @@ export async function analyzeBodyCheck(params: AnalysisParams): Promise<Analysis
     newImageId,
     newImageDate,
     bodyRegion,
-    changeType: defaultChangeType,
-    finding: defaultFinding,
-    confidence: visualResult.detected ? 'Moderate' : 'High',
-    confidenceScore: visualResult.detected ? 0.76 : 0.95,
-    candidateFinding: customCandidateFinding,
+    changeType: detectedChangeType,
+    finding: detectedFinding,
+    confidence: confidenceLevel,
+    confidenceScore: Math.round(visualResult.confidence * 100) / 100,
+    isHealed,
     aiObservation: customObservation,
+    candidateFinding: customCandidateFinding,
     deltaRegion: visualResult.deltaRegion,
-    changeCoordinates: customCandidateFinding.changeCoordinates
+    changeCoordinates: customCandidateFinding.changeCoordinates,
+    mlInference: customCandidateFinding.mlInference
   };
 }

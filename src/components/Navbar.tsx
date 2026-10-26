@@ -9,13 +9,14 @@ import {
   User, 
   Settings, 
   LogOut, 
-  X
+  X,
+  Zap
 } from 'lucide-react';
 import { UserProfile } from '../types/auth';
 
 interface NavbarProps {
-  currentTab: 'dashboard' | 'new-check' | 'history' | 'review' | 'detail';
-  onNavigate: (tab: 'dashboard' | 'new-check' | 'history') => void;
+  currentTab: 'dashboard' | 'new-check' | 'direct-scan' | 'history' | 'review' | 'detail';
+  onNavigate: (tab: 'dashboard' | 'new-check' | 'direct-scan' | 'history') => void;
   onResetData: () => void;
   totalChecksCount: number;
   pendingChecksCount: number;
@@ -94,6 +95,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
 
               <button
+                onClick={() => onNavigate('direct-scan')}
+                className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  currentTab === 'direct-scan'
+                    ? 'bg-indigo-50 text-indigo-900 border border-indigo-300 font-semibold'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <Zap className="w-4 h-4 text-indigo-600" />
+                <span>Direct Scan</span>
+              </button>
+
+              <button
                 onClick={() => onNavigate('history')}
                 className={`flex items-center space-x-2 px-3 py-2 rounded-md text-sm font-medium transition-colors relative ${
                   currentTab === 'history' || currentTab === 'detail'
@@ -115,8 +128,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             </nav>
 
             {/* Right Side: Demo Reset & User Profile Area */}
-            <div className="flex items-center space-x-3">
-              
+            <div className="flex items-center space-x-2 sm:space-x-3">
+
               <button
                 onClick={onResetData}
                 title="Reset records to default state"

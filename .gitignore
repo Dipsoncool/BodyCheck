@@ -9,10 +9,15 @@ lerna-debug.log*
 
 # Dependencies
 node_modules
+.pnp
+.pnp.js
 
 # Build output
 dist
 dist-ssr
+
+# Vercel
+.vercel
 
 # Environment variables
 .env
@@ -21,6 +26,7 @@ dist-ssr
 
 # Editor & OS files
 .DS_Store
+Thumbs.db
 .idea
 .vscode/*
 !.vscode/extensions.json
@@ -29,6 +35,15 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+env/
+venv/
+.venv/
+*.egg-info/
 
 # Temporary scratch folder
 scratch/
